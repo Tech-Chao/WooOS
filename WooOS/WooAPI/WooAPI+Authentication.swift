@@ -87,7 +87,7 @@ public extension WooAPI {
         alamofireManager.request(url, parameters: authBody)
             .responseJSON { responseJSON in
                 guard
-                    responseJSON.result.isSuccess
+                    responseJSON.result.success
                     else {
                         complete(false, WooError.couldNotParseJSON(description: "Result was not a success and/or the response is not valid JSON data."))
                         return
@@ -125,7 +125,7 @@ public extension WooAPI {
         alamofireManager.request(url, parameters: parameters)
             .responseJSON { responseJSON in
             guard
-                responseJSON.result.isSuccess,
+                responseJSON.result.success,
                 let json = responseJSON.value as? [String: Any],
                 let nonce = json["nonce"] as? String
                 else {
@@ -179,7 +179,7 @@ public extension WooAPI {
                 
                 guard
                     // Confirm HTTP response is success
-                    responseJSON.result.isSuccess,
+                    responseJSON.result.success,
                     
                     // Confirm response body value is in JSON format
                     let json = responseJSON.result.value as? [String: Any],
@@ -270,7 +270,7 @@ public extension WooAPI {
             .responseJSON { response in
                 guard
                     // Confirm result is success
-                    response.result.isSuccess,
+                    response.result.success,
                     
                     // Confirm response value is in JSON format
                     let json = response.result.value as? [String: Any],

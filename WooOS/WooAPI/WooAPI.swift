@@ -46,10 +46,10 @@ public class WooAPI {
 
     
     /// The shared SessionManager instance for Alamofire.
-    let alamofireManager: SessionManager = {
+    let alamofireManager: Session = {
         
         // Build the session manager with the configured session.
-        let manager = Alamofire.SessionManager(configuration: .default)
+        let manager = Alamofire.Session(configuration: .default)
         
         return manager
     }()
@@ -100,7 +100,7 @@ public class WooAPI {
         // Perform request
         alamofireManager.request(request)
             // Authenticate using given credentials
-            .authenticate(usingCredential: credentials)
+            .authenticate(with:credentials)
             // Handle response from request
             .responseJSON { jsonResponse in
                 
@@ -108,7 +108,7 @@ public class WooAPI {
                 
                 guard
                     // Assure response is success
-                    jsonResponse.result.isSuccess,
+                    jsonResponse.result.success,
                     
                     // Assure value is a valid JSON response
                     let json = jsonResponse.result.value as? [String : Any]

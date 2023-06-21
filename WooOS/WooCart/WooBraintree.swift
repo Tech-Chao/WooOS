@@ -10,50 +10,50 @@ import Foundation
 import Alamofire
 import UIKit
 import ObjectMapper
-import BraintreeDropIn
+//import BraintreeDropIn
 
 public class WooBraintree {
     
-    static let tokenPath = "wp-json/woo-os/v1/braintree/token"
-    static let noncePath = "wp-json/woo-os/v1/braintree/payment"
-    
-    func showDropIn(on viewController: UIViewController, with token: String, then complete: BTDropInControllerHandler? = nil) {
-        let request =  BTDropInRequest()
-        let dropIn = BTDropInController(authorization: token, request: request, handler: complete)
-        viewController.present(dropIn!, animated: true, completion: nil)
-    }
-    
-    func fetchToken(_ viewController: UIViewController, then complete: BTDropInControllerHandler? = nil) {
-        guard let url = URL(string: WooBraintree.tokenPath) else {
-            return
-        }
-        WooOS.main.api.alamofireManager.request(url).responseJSON { jsonResponse in
-            guard
-                jsonResponse.result.isSuccess,
-                let json = jsonResponse.value as? [String: Any],
-                let token = json["token"] as? String
-                else {
-                    return
-            }
-            
-            self.showDropIn(on: viewController, with: token, then: complete)
-        }
-    }
-    
-    func postTransaction(_ transaction: WooBraintreeTransaction, then complete: WooCompletion.Success? = nil) {
-        
-        guard let url = URL(string: WooBraintree.noncePath) else {
-            return
-        }
-        WooOS.main.api.alamofireManager.request(url,
-                                                method: .post,
-                                                parameters: transaction.toJSON(),
-                                                encoding: JSONEncoding.default,
-                                                headers: nil)
-            .responseJSON { (jsonResponse) in
-                
-        }
-    }
+//    static let tokenPath = "wp-json/woo-os/v1/braintree/token"
+//    static let noncePath = "wp-json/woo-os/v1/braintree/payment"
+//    
+//    func showDropIn(on viewController: UIViewController, with token: String, then complete: BTDropInControllerHandler? = nil) {
+//        let request =  BTDropInRequest()
+//        let dropIn = BTDropInController(authorization: token, request: request, handler: complete)
+//        viewController.present(dropIn!, animated: true, completion: nil)
+//    }
+//    
+//    func fetchToken(_ viewController: UIViewController, then complete: BTDropInControllerHandler? = nil) {
+//        guard let url = URL(string: WooBraintree.tokenPath) else {
+//            return
+//        }
+//        WooOS.main.api.alamofireManager.request(url).responseJSON { jsonResponse in
+//            guard
+//                jsonResponse.result.isSuccess,
+//                let json = jsonResponse.value as? [String: Any],
+//                let token = json["token"] as? String
+//                else {
+//                    return
+//            }
+//            
+//            self.showDropIn(on: viewController, with: token, then: complete)
+//        }
+//    }
+//    
+//    func postTransaction(_ transaction: WooBraintreeTransaction, then complete: WooCompletion.Success? = nil) {
+//        
+//        guard let url = URL(string: WooBraintree.noncePath) else {
+//            return
+//        }
+//        WooOS.main.api.alamofireManager.request(url,
+//                                                method: .post,
+//                                                parameters: transaction.toJSON(),
+//                                                encoding: JSONEncoding.default,
+//                                                headers: nil)
+//            .responseJSON { (jsonResponse) in
+//                
+//        }
+//    }
     
 }
 
