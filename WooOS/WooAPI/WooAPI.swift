@@ -43,7 +43,7 @@ public class WooAPI {
     public var siteURL: URL
     
     /// The stored token used to validate the user's authentication session, stored in the UserDefaults dictionary, accessed with the getter and setter on this variable.
-
+    
     
     /// The shared SessionManager instance for Alamofire.
     let alamofireManager: Session = {
@@ -99,32 +99,29 @@ public class WooAPI {
         
         // Perform request
         alamofireManager.request(request)
-            // Authenticate using given credentials
-            .authenticate(with:credentials)
-            // Handle response from request
+        // Authenticate using given credentials
+            .authenticate(with: credentials)
+        // Handle response from request
             .responseJSON { jsonResponse in
-                
-                print(jsonResponse.value as Any)
-                
-                guard
-                    // Assure response is success
-                    jsonResponse.result.success,
+                switch jsonResponse.result {
+                case .success(let value):
+                    print(value as Any)
                     
-                    // Assure value is a valid JSON response
-                    let json = jsonResponse.result.value as? [String : Any]
-                    
-                    // Handle errors
-                    else {
-                        complete?(false, nil, .couldNotParseJSON(description: "Could not parse JSON into [String : Any]"))
+                    guard let json = value as? [String: Any] else {
+                        complete?(false, nil, .couldNotParseJSON(description: "Could not parse JSON into [String: Any]"))
                         return
+                    }
+                    
+                    // Map JSON to native type using Mappable protocol.
+                    let object = Mapper<T>().map(JSON: json)
+                    
+                    // Complete with asynchronous callback
+                    complete?(true, object, nil)
+                    
+                case .failure(let error):
+                    complete?(false, nil, .unsuccessfulRequestResponse(description:error.localizedDescription))
                 }
-                
-                // Map JSON to native type using Mappable protocol.
-                let object = Mapper<T>().map(JSON: json)
-                
-                // Complete with asynchronous callback
-                complete?(true, object, nil)
-        }
+            }
     }
     
     /// Get a list of Mappable Objects
@@ -139,7 +136,7 @@ public class WooAPI {
         
         // Perform request
         alamofireManager.request(request)
-            // Handle response from request
+        // Handle response from request
             .responseJSON { jsonResponse in
                 
                 print(jsonResponse.response as Any)
@@ -180,6 +177,6 @@ public class WooAPI {
                 
                 // Complete with asynchronous callback
                 complete?(true, objects, nil)
-        }
+            }
     }
 }

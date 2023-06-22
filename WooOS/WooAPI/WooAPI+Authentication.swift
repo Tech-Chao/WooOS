@@ -17,15 +17,14 @@ public extension WooAPI {
     ///
     /// - Parameter token: The stored token to be embedded in the HTTP header
     /// - Returns: ["Authorization" : "Bearer \(token ?? "")"]
-    func authHeaders(with token: String?) -> [String: String]? {
-        
-        // Safely unwrap token
+    func authHeaders(with token: String?) -> HTTPHeaders? {
         guard let safeToken = token else {
             return nil
         }
         
-        // Build headers dictionary of type [String : String]
-        let authHeaders = ["Authorizaion" : "Bearer \(safeToken)"]
+        let authHeaders: HTTPHeaders = [
+            "Authorization": "Bearer \(safeToken)"
+        ]
         return authHeaders
     }
     
@@ -38,8 +37,8 @@ public extension WooAPI {
         guard
             let key = consumerKey,
             let secret = consumerSecret
-            else {
-                throw WooError.managerCredentialsAreNil(description: "Either the consumer key or the consumer secret has no value.")
+        else {
+            throw WooError.managerCredentialsAreNil(description: "Either the consumer key or the consumer secret has no value.")
         }
         
         return URLCredential(user: key,
@@ -67,12 +66,11 @@ public extension WooAPI {
     ///   - password: The given password by the customer.
     ///   - complete: Asynchronous callback containing a success flag and an error string if failed. If unsuccessful: success = false, error = String.
     public func signUp(with firstName: String,
-                lastName: String,
-                username: String,
-                email: String,
-                and password: String,
-                then complete: @escaping WooCompletion.Success) {
-        
+                       lastName: String,
+                       username: String,
+                       email: String,
+                       and password: String,
+                       then complete: @escaping WooCompletion.Success) {
         let authBody = [
             "username": self.username(from: email),
             "email": email,
@@ -80,61 +78,66 @@ public extension WooAPI {
         ]
         
         guard let url = URL(string: "/wp-json/wp/v2/users/register", relativeTo: siteURL) else {
-            complete(false, WooError.invalidURL(description: "Could not build user registration url."))
+            complete(false, WooError.invalidURL(description: "Could not build user registration URL."))
             return
         }
         
-        alamofireManager.request(url, parameters: authBody)
+        alamofireManager.request(url, method: .post, parameters: authBody)
+            .validate(statusCode: 200..<300)
             .responseJSON { responseJSON in
-                guard
-                    responseJSON.result.success
-                    else {
-                        complete(false, WooError.couldNotParseJSON(description: "Result was not a success and/or the response is not valid JSON data."))
-                        return
-                }
-                
-                guard
-                    let json = responseJSON.value as? [String: Any],
-                    let code = json["code"] as? Int,
-                    let message = json["message"] as? String
+                switch responseJSON.result {
+                case .success(let value):
+                    guard
+                        let json = value as? [String: Any],
+                        let code = json["code"] as? Int,
+                        let message = json["message"] as? String
                     else {
                         complete(false, WooError.couldNotParseJSON(description: "Could not extract JSON data from response."))
                         return
-                }
-                
-                guard
-                    code == 200
-                    else {
-                        print("WooOS Authentication Response Code was not 200. Instead it was \(code), with the message \"\(message)\"")
+                    }
+                    
+                    guard code == 200 else {
+                        print("WooOS Authentication Response Code was not 200. Instead, it was \(code), with the message \"\(message)\"")
                         complete(false, WooError.signupFailed(description: message))
                         return
+                    }
+                    
+                    complete(true, nil)
+                    
+                case .failure(let error):
+                    complete(false, .unsuccessfulRequestResponse(description: error.localizedDescription))
                 }
-                
-                complete(true, nil)
-        }
+            }
     }
+    
     
     private func getNonce(then complete: @escaping WooCompletion.Token) {
         guard let url = URL(string: "/api/get_nonce/", relativeTo: siteURL) else {
-            complete(false, nil, WooError.invalidURL(description: "Could not build nonce url."))
+            complete(false, nil, WooError.invalidURL(description: "Could not build nonce URL."))
             return
         }
         
         let parameters: Parameters = ["controller": "user", "method": "register"]
         
         alamofireManager.request(url, parameters: parameters)
+            .validate(statusCode: 200..<300)
             .responseJSON { responseJSON in
-            guard
-                responseJSON.result.success,
-                let json = responseJSON.value as? [String: Any],
-                let nonce = json["nonce"] as? String
-                else {
-                    complete(false, nil, .couldNotParseJSON(description: "Resulting JSON is wrong format while getting nonce."))
-                    return
+                switch responseJSON.result {
+                case .success(let value):
+                    guard
+                        let json = value as? [String: Any],
+                        let nonce = json["nonce"] as? String
+                    else {
+                        complete(false, nil, .couldNotParseJSON(description: "Resulting JSON has the wrong format while getting the nonce."))
+                        return
+                    }
+                    
+                    complete(true, nonce, nil)
+                    
+                case .failure(let error):
+                    complete(false, nil,.unsuccessfulRequestResponse(description: error.localizedDescription))
                 }
-                
-                complete(true, nonce, nil)
-        }
+            }
     }
     
     /// Login user with supplied username and password.
@@ -144,8 +147,8 @@ public extension WooAPI {
     ///   - password: String of Password provided by User.
     ///   - complete: Asynchronous callback containing a success flag and an error string if failed. If unsuccessful: success = false, error = String.
     public func login(with username: String,
-               and password: String,
-               then complete: @escaping WooCompletion.Token) {
+                      and password: String,
+                      then complete: @escaping WooCompletion.Token) {
         
         // Request token using given username and password
         getToken(with: username, and: password, then: complete)
@@ -157,10 +160,7 @@ public extension WooAPI {
     ///   - username: String of Username provided by User.
     ///   - password: String of Password provided by User.
     ///   - complete: Asynchronous callback containing a success flag, the token that was requested, and an error string if failed. If unsuccessful: success = false, token = nil, error = String.
-    private func getToken(with username: String,
-                          and password: String,
-                          then complete: @escaping WooCompletion.Token) {
-        
+    private func getToken(with username: String, and password: String, then complete: @escaping WooCompletion.Token) {
         // Build Request URL to get token
         guard let requestURL = URL(string: "wp-json/jwt-auth/v1/token", relativeTo: siteURL) else {
             complete(false, nil, WooError.cannotConstructURL(description: "Could not build token URL"))
@@ -171,44 +171,28 @@ public extension WooAPI {
         let tokenParameters = ["username": username, "password": password]
         
         // Make request
-        alamofireManager.request(requestURL,
-                                 method: .post,
-                                 parameters: tokenParameters)
-            // Handle reponse
+        alamofireManager.request(requestURL, method: .post, parameters: tokenParameters)
+            .validate(statusCode: 200..<300)
             .responseJSON { responseJSON in
-                
-                guard
-                    // Confirm HTTP response is success
-                    responseJSON.result.success,
-                    
-                    // Confirm response body value is in JSON format
-                    let json = responseJSON.result.value as? [String: Any],
-                    
-                    // Extract token from JSON
-                    let newToken = json["token"] as? String
-                    
-                    // Handle error
+                switch responseJSON.result {
+                case .success(let value):
+                    guard
+                        let json = value as? [String: Any],
+                        let newToken = json["token"] as? String
                     else {
                         complete(false, nil, WooError.couldNotGetToken(description: "Failed to get token"))
                         return
+                    }
+                    
+                    self.persistToken(newToken)
+                    
+                    complete(true, newToken, nil)
+                    
+                case .failure(let error):
+                    complete(false, nil,.unsuccessfulRequestResponse(description: error.localizedDescription))
                 }
-                
-                // Save token to
-                self.persistToken(newToken)
-                
-                complete(true, newToken, nil)
-                
-//                self.persistToken(newToken) { success, error in
-//                    if success {
-//                        // Asynchronous callback with new token value
-//                        complete(true, newToken, nil)
-//                    } else {
-//                        complete(false, newToken, WooError.noToken(description: "Unable to persist token after retrieving it from the server."))
-//                    }
-//                }
-        }
+            }
     }
-    
     /// Log user out by revoking the token on the server, deleting the token locally, and deleting the stored user in `WooOS.main`.
     public func logout(then complete: WooCompletion.Completion? = nil) {
         
@@ -221,6 +205,7 @@ public extension WooAPI {
         complete?()
     }
     
+     
     func token() -> String? {
         return UserDefaults.standard.string(forKey: "token")
     }
@@ -229,26 +214,26 @@ public extension WooAPI {
         
         UserDefaults.standard.set(token, forKey: "token")
         
-//        guard
-//            // Unwrap username
-//            let username = WooOS.main.currentCustomer?.username
-//
-//            // Handle nil values
-//            else {
-//                complete(false, WooError.couldNotSaveToken(description: "Invalid username: Username is nil."))
-//                return
-//        }
-//
-//        do {
-//            // Save newValue to keychain
-//            try Locksmith.saveData(data: ["token": token], forUserAccount: username, inService: WooAPI.keychainService)
-//
-//            // Handle errors
-//        } catch {
-//            complete(false, WooError.couldNotSaveToken(description: "Failed saving data with Locksmith: " + error.localizedDescription))
-//        }
-//
-//        complete(true, nil)
+        //        guard
+        //            // Unwrap username
+        //            let username = WooOS.main.currentCustomer?.username
+        //
+        //            // Handle nil values
+        //            else {
+        //                complete(false, WooError.couldNotSaveToken(description: "Invalid username: Username is nil."))
+        //                return
+        //        }
+        //
+        //        do {
+        //            // Save newValue to keychain
+        //            try Locksmith.saveData(data: ["token": token], forUserAccount: username, inService: WooAPI.keychainService)
+        //
+        //            // Handle errors
+        //        } catch {
+        //            complete(false, WooError.couldNotSaveToken(description: "Failed saving data with Locksmith: " + error.localizedDescription))
+        //        }
+        //
+        //        complete(true, nil)
     }
     
     /// Confirm the token that is currently in use is still valid.
@@ -265,33 +250,27 @@ public extension WooAPI {
         // Make request
         alamofireManager.request(requestURL,
                                  method: .post,
-                                 headers: authHeaders(with: token))
-            // Handle response
-            .responseJSON { response in
-                guard
-                    // Confirm result is success
-                    response.result.success,
-                    
-                    // Confirm response value is in JSON format
-                    let json = response.result.value as? [String: Any],
-                    
-                    // Extract nested 'data' dictionary
-                    let data = json["data"] as? [String : Any],
-                    
-                    // Extract the 'status' value from the 'data' dictionary as an Int
-                    let status = data["status"] as? Int,
-                    
-                    // Confirm 'status' is equal to 200, or OK
-                    status == 200
-                    
-                    // Handle error
-                    else {
-                        complete(false, .couldNotParseJSON(description: "Could not parse JSON in response to token validation."))
-                        return
-                }
-                
-                // Run asynchronous completion block with success flag!
-                complete(true, nil)
+                                 headers:  authHeaders(with: token))
+        // Handle response
+        .responseJSON { response in
+            switch response.result {
+                   case .success(let value):
+                       guard let json = value as? [String: Any],
+                             let data = json["data"] as? [String: Any],
+                             let status = data["status"] as? Int else {
+                           complete(false, .couldNotParseJSON(description: "Could not parse JSON in response to token validation."))
+                           return
+                       }
+                       
+                       if status == 200 {
+                           complete(true, nil)
+                       } else {
+                           complete(false, .couldNotParseJSON(description: "Token validation failed with status code \(status)"))
+                       }
+                       
+                   case .failure(let error):
+                       complete(false, .unsuccessfulRequestResponse(description: error.localizedDescription))
+                   }
         }
     }
 }
